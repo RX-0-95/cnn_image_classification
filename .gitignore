@@ -1,2 +1,5 @@
 .venv 
 CIFAR10_Data/
+saved_model/**
+__pycache__/
+*.pyc
