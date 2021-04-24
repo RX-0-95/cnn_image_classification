@@ -17,5 +17,7 @@ Download the data from https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz
 Unzip the data and put **cifar-10-batches-py** folder inside the CIFAR10_DATA folder. 
 
 ## Run code 
-
+### Project 1A 
 Run lennet5.ipynb 
+### Project 1B
+Run quantize_lennet5.ipynb
