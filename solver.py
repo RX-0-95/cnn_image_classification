@@ -2,12 +2,14 @@
 from os import name
 from random import shuffle
 from numpy.lib.npyio import save
+import progress
 import tensorflow as tf 
 import numpy as np
 from tensorflow import keras 
 import os 
 import matplotlib.pyplot as plt
 from tensorflow.keras import optimizers 
+from terminal_ui import KerasProgressBar
 class Solver(object):
     """
     Solver for tensorflow
@@ -29,6 +31,7 @@ class Solver(object):
         self.learning_rate = self.options.pop('lr',0.0001)
         self.num_epochs = self.options.pop('epoch_num',25)
         self.train_batch_size = self.options.pop('train_batch_size',32)
+        self.from_logits = self.options.pop('from_logits',False)
         self.logs = {
             'train_acc': [],
             'train_loss': [],
@@ -36,15 +39,6 @@ class Solver(object):
             'val_loss': [],
             } 
 
-        #_train_val_split_ratio = _options.pop('train_val_split_ratio',0.8)
-        #_val_batch_size = _options.pop('val_batch_size',8)
-        #_weight_decay = _options.pop('weight_decay',0.001)
-        #_scheduler_factor = _options.pop('scheduler_factor',0.8)
-        #_scheduler_patience = _options.pop('scheduler_patience',50)
-        #_save_flag = _options.pop('save_flag',False)
-        #_min_save_epoch = _options.pop('min_save_epoch',50)
-        #_model_dir = _options.pop('model_dir','model')
-        #_model_name= _options.pop('model_name','model.pth')
         
         # Check if there is unexpected options 
         if len(self.options) >0:
@@ -58,11 +52,13 @@ class Solver(object):
         y_val = data_set['val_label']
         
         self.train_data = Dataset(X_train,y_train,self.train_batch_size,shuffle=True)
+        self.train_data_size = X_train.shape[0]//self.train_batch_size 
+        #print(self.train_data_size)
         self.val_data = Dataset(X_val,y_val,batch_size=X_val.shape[0])
         
 
         #self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=model,label)
-        self.loss_fn = keras.losses.SparseCategoricalCrossentropy()
+        self.loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=self.from_logits)
         self.optimizer = self.gen_optimizer()
         
 
@@ -98,7 +94,9 @@ class Solver(object):
         with tf.device(self.device):
             test_loss =tf.keras.metrics.Mean(name='test_loss')
             test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
+            #test_accuracy = tf.keras.metrics.SparseCategoricalCrossentropy(name='test_accuracy')
             scores = self.model(X)
+            
             loss = self.loss_fn(y, scores)
             test_loss.update_state(loss)
             test_accuracy.update_state(y, scores)
@@ -125,29 +123,37 @@ class Solver(object):
             for epoch in range(self.num_epochs):
                 train_loss.reset_states()
                 train_accuracy.reset_states() 
-
+                print('Epoch: {}/{}'.format(epoch,self.num_epochs))
+                progress_bar = KerasProgressBar(self.train_data_size)
                 for x_np, y_np in self.train_data:
                     with tf.GradientTape() as tape:
                         #tape.watch(model.trainable_variables)
                         scores = model(x_np)
-                        #print(scores)
+                        #print("scores: {}".format(scores))
+                    
                         loss = self.loss_fn(y_np, scores)
                         gradients = tape.gradient(loss, model.trainable_variables)
                         #print(gradients)
                         self.optimizer.apply_gradients(zip(gradients, model.trainable_variables))
                         
-                        # Update the metrics
-                        train_loss.update_state(loss)
-                        train_accuracy.update_state(y_np, scores)
-
+                        # Update the metrics when t>10 so we dont get crazy values
                         
+                        train_loss.update_state(loss)
+                        train_accuracy.update_state(y_np, scores)                        
                         #
+                        out_train_acc = "{:.4f}".format(train_accuracy.result().numpy())
+                        out_train_loss = "{:.4f}".format(train_loss.result().numpy())
+                        progress_bar.update_train_acc_loss(out_train_acc,out_train_loss)
+                        #progress_bar.update_train_acc_loss(train_accuracy.result(),train_loss.result())
+                        progress_bar.next() 
+                        
+                        
                         if t % 100 == 0:
                             val_loss.reset_states()
                             val_accuracy.reset_states()
                             for test_x,test_y in self.val_data:
                                 val_scores = model(test_x)
-                                prediction = tf.math.argmax(val_scores,axis=1)
+                                #prediction = tf.math.argmax(val_scores,axis=1)
                                 loss_t = self.loss_fn(test_y,val_scores)
                                 val_loss.update_state(loss_t)
                                 val_accuracy.update_state(test_y,val_scores)   
@@ -155,6 +161,11 @@ class Solver(object):
                                 self.logs['val_loss'].append(val_loss.result())
                                 self.logs['train_acc'].append(train_accuracy.result()*100)
                                 self.logs['train_loss'].append(train_loss.result())
+                                out_val_acc = "{:.4f}".format(val_accuracy.result().numpy())
+                                out_val_loss = "{:.4f}".format(val_loss.result().numpy())
+                                progress_bar.update_val_acc_loss(out_val_acc,out_val_loss)
+                        
+                            """
                             if self.verbose:
                                 template = 'Iteration {}, Epoch {}, Loss: {}, Accuracy: {}, Val Loss: {}, Val Accuracy: {}'     
                                 print(template.format(t, str(epoch+1)+'/'+str(self.num_epochs),
@@ -162,7 +173,10 @@ class Solver(object):
                                     train_accuracy.result()*100,
                                     val_loss.result(),
                                     val_accuracy.result()*100))
+                            """
+                    
                     t+= 1
+                progress_bar.finish()
                 #Save model  
                 if self.save_mode:
                     if epoch% self.save_every_num_epoch == 0 or epoch == self.num_epochs:
