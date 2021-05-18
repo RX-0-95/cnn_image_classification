@@ -148,7 +148,7 @@ class Solver(object):
                         progress_bar.next() 
                         
                         
-                        if t % 100 == 0:
+                        if t % 100 == 0 and t>100:
                             val_loss.reset_states()
                             val_accuracy.reset_states()
                             for test_x,test_y in self.val_data:

@@ -1,3 +1,4 @@
+
 import os
 import tensorflow as tf
 
@@ -126,7 +127,6 @@ def cifar_resnet20(block_type='original', shortcut_type='A', l2_reg=1e-4, load_w
     if load_weights: model = load_weights_func(model, 'cifar_resnet20')
     return model
 
-model = cifar_resnet20()
-input_shape = (1,32,32,2)
-model.build(input_shape)
-model.summary()
+
+
+

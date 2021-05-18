@@ -45,10 +45,11 @@ class TerminalBar(object):
         #print(self.progress)
         #print(self.filler_length)
         if self.progress >= self.max:
-            ender = '\n'
+            ender = ''
         else:
-            ender = '\r'
-        print(self.str,end=ender)
+            ender = ''
+        print('\r',self.str,end= '')
+        
 
     def set_filler(self,filler):
         self.filler=filler 
@@ -63,9 +64,7 @@ class TerminalBar(object):
         """
         Force the bar to end 
         """
-        if self.progress != self.max:
-            self.progress = self.max
-            print('')
+        print('')
         
     
 class KerasProgressBar(object):
@@ -75,10 +74,10 @@ class KerasProgressBar(object):
         self.bar = TerminalBar(max=max_iter, name='KerasProgressBar')
         self.iter_counter = 0 
         self.front_des_len = 2*len(str(max_iter))+1
-        self.train_acc = None 
-        self.val_acc = None
-        self.train_loss = None 
-        self.val_loss = None  
+        self.train_acc = 'NA' 
+        self.val_acc = 'NA'
+        self.train_loss = 'NA' 
+        self.val_loss = 'NA' 
 
     def write_iter_info(self):
         iter_info = str(self.iter_counter)+'/'+ str(self.max_iter)
@@ -92,11 +91,11 @@ class KerasProgressBar(object):
         self.val_acc = val_acc 
         self.val_loss = val_loss
     def write_train_acc_loss_info(self):
-        train_str = ' - train_acc: {} - train_loss: {}'.\
+        train_str = ' - train_acc: {:>6} - train_loss: {:>6}'.\
             format(self.train_acc,self.train_loss)
         self.bar.update_back_descriptor(train_str)
     def write_val_acc_loss_info(self):
-        val_str = ' - val_acc: {} - val_loss: {}'.\
+        val_str = ' - val_acc: {:<5} - val_loss: {:<5}'.\
             format(self.val_acc,self.val_loss)
         self.bar.append_back_descriptor(val_str)
     

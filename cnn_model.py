@@ -103,13 +103,13 @@ class Lennet5(tf.keras.Model):
         x = self.fc1(x)
         x = self.activation(x)
         x = self.fc_out(x)
-        scores = self.softmax(x)
-        return scores
+        x = self.softmax(x)
+        return x
 
 class Quan_Lennet5(tf.keras.Model):
-    def __init__(self, in_channel,out_channel, options={},input_shape= (32,32,3),*args, **kwargs):
+    def __init__(self, in_channel,out_channel, options={},input_shape= [2,32,32,3],*args, **kwargs):
         super(Quan_Lennet5,self).__init__(**kwargs)
-        self.input_layer = tf.keras.layers.Input(input_shape)
+        #self.input_layer = tf.keras.layers.Input(input_shape)
         #Get options from kwargs 
         _options = options.copy() 
         conv1_out = _options.pop('conv1_out',18)
@@ -143,8 +143,8 @@ class Quan_Lennet5(tf.keras.Model):
         self.fc_out = keras.layers.Dense(out_channel,kernel_initializer=initializer)
         self.softmax = keras.layers.Softmax() 
         self.activation = keras.layers.ReLU()
-
-        #self.out = self.call(self.input_layer)   
+        dummy_input = tf.zeros(input_shape)
+        self.out = self.call(dummy_input)   
 
 
     def call(self, x,training=False):
