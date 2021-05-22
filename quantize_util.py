@@ -39,3 +39,7 @@ def quantize_weights_bias(model,weight_wl=8,wieght_fl=8, bias_wl=16,bias_fl=8):
 def copy_weight(target_model,source_model):
     for i in range(len(target_model.trainable_variables)):
         target_model.trainable_variables[i].assign(source_model.trainable_variables[i])
+
+def quantize_var(var,wl,fl):
+    var.assign(to_fixpoint(var,wl,fl))
+

@@ -79,3 +79,12 @@ def get_CIFAR10_data(num_training=49000, num_validation=1000, num_test=10000,sub
         X_val -= mean_image
         X_test -= mean_image
     return X_train, y_train, X_val, y_val, X_test, y_test
+
+def count_nested_list_elemets(element):
+    count = 0 
+    if isinstance(element,list):
+        for each_element in element:
+            count += count_nested_list_elemets(each_element)
+    else:
+        count += 1 
+    return count 

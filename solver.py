@@ -91,19 +91,38 @@ class Solver(object):
         Test_loss 
         Test_accuracy 
         """
+       
+        test_data = Dataset(X,y,10000,shuffle=False)
+        test_loss =tf.keras.metrics.Mean(name='test_loss')
+        test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
         with tf.device(self.device):
+            template = 'Loss: {},Test Accuracy: {}' 
+            for x_np,y_np in test_data:
+                #test_accuracy = tf.keras.metrics.SparseCategoricalCrossentropy(name='test_accuracy')
+                scores = self.model(x_np)
+                loss = self.loss_fn(y_np, scores)
+                test_loss.update_state(loss)
+                test_accuracy.update_state(y_np, scores)
+            print(template.format(test_loss.result(),
+                test_accuracy.result()*100))
+            return test_loss.result(), test_accuracy.result() 
+        
+        """
+        test_data = Dataset(X,y,10000,shuffle=False)
+        
+        with tf.device(self.device):
+            template = 'Loss: {},Test Accuracy: {}' 
             test_loss =tf.keras.metrics.Mean(name='test_loss')
             test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
             #test_accuracy = tf.keras.metrics.SparseCategoricalCrossentropy(name='test_accuracy')
             scores = self.model(X)
-            
             loss = self.loss_fn(y, scores)
             test_loss.update_state(loss)
             test_accuracy.update_state(y, scores)
-            template = 'Loss: {},Test Accuracy: {}'     
             print(template.format(test_loss.result(),
                 test_accuracy.result()*100))
             return test_loss.result(), test_accuracy.result() 
+        """
 
     def predict(self,X):
         scores = self.model(X)

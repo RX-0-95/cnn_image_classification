@@ -26,23 +26,8 @@ def to_fixpoint(value,wl=8,fl=4):
     def grad(upstream):
         return upstream,0.0,0.0
     return value_q,grad
-"""
-class quantizeConv2D(keras.layers.Conv2D):
-    def __init__(self, filters, kernel_size, strides, padding, 
-                kernel_initializer, 
-                kernel_regularizer, to_fix_fn, **kwargs):
-        super().__init__(filters, kernel_size, 
-                        strides=strides, padding=padding, 
-                        #activation=activation, 
-                        kernel_initializer=kernel_initializer, 
-                        kernel_regularizer=kernel_regularizer, 
-                        **kwargs)
-        self.to_fix_fn = to_fix_fn
-    def call(self, x):
-        x = super().call(x)
-        x = self.to_fix_fn(x,self)
-        return x 
-"""
+
+
 
 class quantizeConv2D(keras.layers.Conv2D):
     def __init__(self, filters, kernel_size, padding, 
@@ -99,9 +84,10 @@ class quantizeMaxPool2D(keras.layers.MaxPool2D):
 
 
 class quantizeDense(keras.layers.Dense):
-    def __init__(self, units, kernel_initializer, 
-                to_fix_fn,*args,**kwargs):
-        super().__init__(units=units, kernel_initializer=kernel_initializer, 
+    def __init__(self, units, kernel_regularizer,
+                to_fix_fn,kernel_initializer=None, *args,**kwargs):
+        super().__init__(units=units, kernel_regularizer = kernel_regularizer,
+                        kernel_initializer=kernel_initializer, 
                         *args,**kwargs)
         self.to_fix_fn = to_fix_fn
     
@@ -130,13 +116,15 @@ class ModelQunatize(object):
         self.full_precision_mode = True
         self.quantize_layer_extract_mode = False
         self.wlfl_list = [] 
-        self.quantize_layers = [] 
+        self.quantize_layers = []
+        self.quantize_layers_outshape = []  
     def set_wlfl_list(self,wlfl):
         self.wlfl_list = wlfl
 
     def to_fix_fn(self,x,layer = None):
         if self.quantize_layer_extract_mode:
-            self.quantize_layers.append([layer,x.shape.as_list()[1:]])
+            self.quantize_layers.append(layer)
+            self.quantize_layers_outshape.append(x.shape.as_list()[1:])
 
         elif self.full_precision_mode:
             #print('Full precision layer: {}'.format(self.layer_counter))
@@ -148,8 +136,7 @@ class ModelQunatize(object):
 
         self.layer_counter += 1 
         return x 
-          
-
+    
     def set_quantize_mode(self):
         self.full_precision_mode = False 
         self.qunatize_layer_extract_mode = False 
@@ -164,13 +151,16 @@ class ModelQunatize(object):
         self.layer_counter = 0 
     def reset_layers_list(self):
         self.quantize_layers = [] 
-    
+        self.quantize_layers_outshape = []
+   
     def get_quantize_layers(self):
         return self.quantize_layers
+    def get_quantize_layers_outshape(self):
+        return self.quantize_layers_outshape
     def get_layer_count(self):
         return self.layer_counter
 
-
+#example of use the qunatizer layer and quantizer 
 class proper_quantize_Lennet5(keras.Model):
     def __init__(self, in_channel,out_channel,quantizer, 
                 options={},input_shape= [2,32,32,3],
