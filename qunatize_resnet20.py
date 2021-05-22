@@ -371,6 +371,7 @@ class Resnet(keras.Model):
         dummy_input = tf.zeros(dummy_input_shape)
         self.forward(dummy_input)
         layers_list = self.quantizer.get_quantize_layers()
+        self.quantizer.set_full_precision_mode()
         self.quantizer.reset() 
         return layers_list      
     def forward(self,inputs):

@@ -14,6 +14,44 @@ class Recorder(object):
     def __init__(self) -> None:
         super().__init__()
 
+class LayerWlfl(object):
+    def __init__(self,k_wl=0,k_fl=0,b_wl=0,b_fl =0) -> None:
+        super().__init__()
+        self.kernel_wl = k_wl
+        self.kernel_fl = k_fl
+        self.bias_wl = b_wl
+        self.bias_fl = b_fl
+  
+class WlflList(object):
+    def __init__(self,layer_num) -> None:
+        super().__init__()
+        self.layers_num = layer_num
+        self.wlfl_list = [] 
+        for _ in range(self.layers_num):
+            layer_wl_fl = LayerWlfl() 
+            self.wlfl_list.append(layer_wl_fl)
+    
+    def layer(self,num):
+        return self.wlfl_list[num]
+    def set_all_to(self,wl,fl):
+        for each_wl_fl in self.wlfl_list:
+            each_wl_fl.kernel_wl = wl 
+            each_wl_fl.kernel_fl = fl
+            each_wl_fl.bias_wl = wl
+            each_wl_fl.bias_fl = fl
+    def __str__(self) -> str:
+        str = super().__str__()
+        for wl_fl in self.wlfl_list:
+            str += '[{},{},{},{}]'.\
+                    format(wl_fl.kernel_wl,
+                        wl_fl.kernel_fl,wl_fl.bias_wl,wl_fl.bias_fl)
+        return str 
+    def __len__(self):
+        return len(self.wlfl_list)   
+    def __iter__(self):
+        return self.wlfl_list.__iter__()  
+
+
 class FlSerachAgent(object):
     def __init__(self,model,tuner_fn,acc_fn) -> None:
         """
@@ -25,7 +63,7 @@ class FlSerachAgent(object):
         self.model = model
         self.tune_callback = tuner_fn
         self.acc_callback = acc_fn
-    
+        
     def search_fl(self,data,wl,mid=None):
         """
         Bisection serach
@@ -65,6 +103,22 @@ class FlSerachAgent(object):
         else:
             return right
 
+    def search_layers_fl(self,layers,wlfl_list:WlflList):
+        """
+        Find best fl for each layers, and assign to wlfl_list
+        if no bias, then fl is 0 
+        """
+        assert len(wlfl_list)==len(layers), \
+            "The layer number not compatiable with wlfl list length"
+        for i,wlfl in enumerate(wlfl_list):
+            opt_kernel_fl = self.search_fl(layers[i].kernel,wlfl.kernel_wl)
+            wlfl.kernel_fl = opt_kernel_fl
+            if layers[i].bias is not None:
+                opt_bias_fl = self.search_fl(layers[i].bias,wlfl.bias_wl)
+                wlfl.bias_fl = opt_bias_fl
+            else:
+                wlfl.bias_fl = 0 
+
     def initial_guess(self,layer_data,wl):
         return wl//2 
 
@@ -73,7 +127,6 @@ class FlSerachAgent(object):
     
     def model_accuracy(self):
         return self.acc_callback(self.model) 
-
 
     def quantize_abs_mean_error(self,data,wl,fl):
         quantized_data= qu.to_fixpoint(data,wl,fl).numpy()
@@ -88,41 +141,30 @@ class FlSerachAgent(object):
             errors.append(error)
         return errors 
 
-class LayerWlfl(object):
-    def __init__(self,k_wl=0,k_fl=0,b_wl=0,b_fl =0) -> None:
-        super().__init__()
-        self.kernel_wl = k_wl
-        self.kernel_fl = k_fl
-        self.bias_wl = b_wl
-        self.bias_fl = b_fl
-  
-class WlflList(object):
-    def __init__(self,layer_num) -> None:
-        super().__init__()
-        self.layers_num = layer_num
-        self.wlfl_list = [] 
-        for _ in range(self.layers_num):
-            layer_wl_fl = LayerWlfl() 
-            self.wlfl_list.append(layer_wl_fl)
-    
-    def layer(self,num):
-        return self.wlfl_list[num]
-    def set_all_to(self,wl,fl):
-        for each_wl_fl in self.wlfl_list:
-            each_wl_fl.kernel_wl = wl 
-            each_wl_fl.kernel_fl = fl
-            each_wl_fl.bias_wl = wl
-            each_wl_fl.bias_fl = fl
-    def __str__(self) -> str:
-        str = super().__str__()
-        for wl_fl in self.wlfl_list:
-            str += '[{},{},{},{}]'.\
-                    format(wl_fl.kernel_wl,
-                        wl_fl.kernel_fl,wl_fl.bias_wl,wl_fl.bias_fl)
-        return str 
+    def _apply_wlfl_to_layer(self,layer,layer_wlfl:LayerWlfl):
+        """
+        Apply wl and fl to one layer's kernel and bias 
+        """
+
+        layer.kernel.assign(qu.to_fixpoint(layer.kernel,
+                                layer_wlfl.kernel_wl,
+                                layer_wlfl.kernel_fl))
+        if layer.bias is not None:
+            layer.bias.assign(qu.to_fixpoint(layer.bias,
+                                layer_wlfl.bias_wl,
+                                layer_wlfl.bias_fl))
+        
+    def apply_wlfl_to_layers(self,layers,wlfl_list:WlflList):
+        assert len(wlfl_list)==len(layers), \
+            "The layer number not compatiable with wlfl list length"
+        for i,wlfl in enumerate(wlfl_list):
+            self._apply_wlfl_to_layer(layers[i],wlfl)
+
+        
+
 
 class WLSearchAgent(object):
-    def __init__(self,model,quantize_layers, wl_agent_opt = {}) -> None:
+    def __init__(self,model,quantize_layers, wl_agent_opt = {},search_policy='BVL') -> None:
         super().__init__()
         self.model = model
 
@@ -144,12 +186,8 @@ class WLSearchAgent(object):
     
         self.wl_list = WlflList(len(self.quantize_layers))
         self.wl_list.set_all_to(32,16)
-    
 
     
-        
-
-   
     def init_search(self):
         """
         for each trainable variable in quantize_layers, get max of the parameter
@@ -221,10 +259,23 @@ class WLSearchAgent(object):
             layers_param.append([kernel,bias])
         return layers_param
            
-    def recover_model_param(self):
-        pass     
+    def restore_model_weight(self):
+        """
+        Restore the model weight to full precision
+        """
+        assert len(self.quantize_layers)==len(self.layers_param_list),\
+            "restore weight failed,length of paramter list should equal to layer length"
+        for i,layer in enumerate(self.quantize_layers):
+            layer[i].kernel.assign(self.layers_param_list[i][0])
+            if layer[i].bias is not None:
+                layer[i].bias.assign(self.layers_param_list[i][1])
+            
+             
 
-    
+    def get_quantize_layers(self):
+        return self.quantize_layers
+    def get_wl_list(self):
+        return self.wl_list
         
 
     

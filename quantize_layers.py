@@ -123,6 +123,7 @@ class ModelQunatize(object):
 
     def to_fix_fn(self,x,layer = None):
         if self.quantize_layer_extract_mode:
+            print('quantize layer extracting')
             self.quantize_layers.append(layer)
             self.quantize_layers_outshape.append(x.shape.as_list()[1:])
 
@@ -139,10 +140,10 @@ class ModelQunatize(object):
     
     def set_quantize_mode(self):
         self.full_precision_mode = False 
-        self.qunatize_layer_extract_mode = False 
+        self.quantize_layer_extract_mode = False 
     def set_full_precision_mode(self):
         self.full_precision_mode = True  
-        self.qunatize_layer_extract_mode = False 
+        self.quantize_layer_extract_mode = False 
     def set_quantize_layer_extrac_mode(self):
         self.full_precision_mode = False 
         self.quantize_layer_extract_mode = True 
@@ -261,6 +262,7 @@ class proper_quantize_Lennet5(keras.Model):
         dummy_input = tf.zeros(self._input_shape) 
         self.forward(dummy_input)
         layers_list = self.quantizer.get_quantize_layers()
+      
         self.quantizer.reset() 
         return layers_list        
 

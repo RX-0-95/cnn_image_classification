@@ -26,10 +26,19 @@ min fl = -32-wl
 * output: 
     - FL for each layer (list)
 
+### Give all qunatize layers and find fls, and assgin to WlflList
+
+        search_layers_fl(self,quantize_layers,wlfl_list)
 
 
 fl_search range: -16-
 recorder(dict) to record each layer's opt fl for 
+
+### Apply wl and fl to the model weights 
+        apply_wlfl_to_layers()
+
+### Retrain the model for one batch (?)
+
 ### Course search 
 1. Decrease the wl of each layer so the total test acc will not decrease by 1%(course threshold)
 
