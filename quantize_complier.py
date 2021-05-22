@@ -4,7 +4,8 @@ import enum
 from pickle import FLOAT
 from traceback import walk_stack
 import numpy as np
-from numpy.core.numeric import full 
+from numpy.core.numeric import full
+from tensorflow.python.keras.backend import dtype 
 import terminal_ui as tui 
 import quantize_util as qu
 import tensorflow as tf 
@@ -250,10 +251,11 @@ class WLSearchAgent(object):
     def extract_layers_trainable_variable(self):
         layers_param = [] 
         for layer in self.quantize_layers:
-            kernel= layer.kernel
+           
+            kernel=  tf.identity(layer.kernel)
             #print(layer.bias)
             if layer.bias is not None: 
-                bias = layer.bias
+                bias = tf.identity(layer.bias)
             else:
                 bias = None 
             layers_param.append([kernel,bias])
@@ -266,9 +268,9 @@ class WLSearchAgent(object):
         assert len(self.quantize_layers)==len(self.layers_param_list),\
             "restore weight failed,length of paramter list should equal to layer length"
         for i,layer in enumerate(self.quantize_layers):
-            layer[i].kernel.assign(self.layers_param_list[i][0])
-            if layer[i].bias is not None:
-                layer[i].bias.assign(self.layers_param_list[i][1])
+            layer.kernel.assign(self.layers_param_list[i][0])
+            if layer.bias is not None:
+                layer.bias.assign(self.layers_param_list[i][1])
             
              
 
