@@ -1,21 +1,43 @@
 
 import copy
 import enum
-from pickle import FLOAT
+from os import terminal_size
+from pickle import FLOAT, TRUE
 from traceback import walk_stack
 import numpy as np
 from numpy.core.numeric import full
+from numpy.random import shuffle
 from tensorflow.python.keras.backend import dtype
-from tensorflow.python.keras.metrics import accuracy 
+from tensorflow.python.keras.metrics import accuracy
+from tensorflow.python.ops.array_ops import sparse_mask 
 import terminal_ui as tui 
 import quantize_util as qu
 import tensorflow as tf 
 import collections
+import solver as sl
 FLOAT_BIT = 32
-class Recorder(object):
-    def __init__(self) -> None:
-        super().__init__()
 
+
+class DataShuffler(object):
+    def __init__(self,X:np.array,y:np.array,sample_size=5000):
+        super().__init__()
+        assert X.shape[0] == y.shape[0], 'X and y have different size'
+        self.data_len = X.shape[0]
+        self.sample_size = sample_size 
+        if self.sample_size > self.data_len:
+            self.sample_size = self.data_len
+        self.sample_idx = np.arange(self.data_len)
+        self.X = X
+        self.y = y 
+    def sample(self,shuffle=False):
+        if not shuffle:
+            return self.X[self.sample_idx[0:self.sample_size]],\
+                        self.y[self.sample_idx[0:self.sample_size]]
+        if shuffle:
+            np.random.shuffle(self.sample_idx)
+            return self.X[self.sample_idx[0:self.sample_size]],\
+                        self.y[self.sample_idx[0:self.sample_size]]
+        
 class LayerWlfl(object):
     def __init__(self,k_wl=0,k_fl=0,b_wl=0,b_fl =0) -> None:
         super().__init__()
@@ -226,10 +248,10 @@ class FlSerachAgent(object):
             else:
                 wlfl.bias_fl = 0 
 
-    def serarch_layers_fl_and_get_accuracy(self,layers,wlfl_list:WlflList):
+    def serarch_layers_fl_and_get_accuracy(self,layers,wlfl_list:WlflList,shuffle=False):
         self.search_layers_fl(layers,wlfl_list)
         self.apply_wlfl_to_layers(layers,wlfl_list)
-        return self.model_accuracy()
+        return self.model_accuracy(shuffle)
 
     def initial_guess(self,layer_data,wl):
         return wl//2 
@@ -237,8 +259,8 @@ class FlSerachAgent(object):
     def tunne_model(self,tunne_threshold = 3):
         return self.tune_callback(self.model)
     
-    def model_accuracy(self):
-        loss, acc = self.acc_callback(self.model) 
+    def model_accuracy(self,shuffle=False):
+        loss, acc = self.acc_callback(self.model,shuffle) 
         return acc 
     def quantize_abs_mean_error(self,data,wl,fl):
         quantized_data= qu.to_fixpoint(data,wl,fl).numpy()
@@ -327,33 +349,32 @@ class WLSearchAgent(object):
                 self.wl_list.layer(i).bias_wl = 0 
             
     
-    def fine_search(self,fl_agent:FlSerachAgent,acc_loss_threshold = 0.02,init_acc = None,search_mode='loss_first'):
+    def fine_search(self,fl_agent:FlSerachAgent,acc_loss_threshold = 0.02,search_mode='loss_first'):
         self.restore_model_weight()
         accuracy_loss = 0.0 
         prev_layer = 0 
         prev_type = 'kernel'
         if search_mode == 'loss_first':
             while (accuracy_loss < acc_loss_threshold):
+                init_acc = fl_agent.model_accuracy(shuffle=True)
                 self.update_accuracy_loss_per_bit_list(fl_agent)
                 var_type, layer_num,acc_loss_per_bit = self.accuracy_loss_per_bit_list.get_smallest_apb() 
                 #calculate the accuracy loss update the wl list
                 prev_layer = layer_num
                 if var_type == 'kernel': 
-                    accuracy_loss += max(self.parameter_size_list.layer(layer_num).kernel_size*acc_loss_per_bit,0)
+                    #accuracy_loss += max(self.parameter_size_list.layer(layer_num).kernel_size*acc_loss_per_bit,0)
                     self.wl_list.layer(layer_num).kernel_wl -=1    
                     prev_type = 'kernel'
                 elif var_type =='bias':
-                    accuracy_loss += max(self.parameter_size_list.layer(layer_num).bias_size*acc_loss_per_bit,0)
+                    #accuracy_loss += max(self.parameter_size_list.layer(layer_num).bias_size*acc_loss_per_bit,0)
                     self.wl_list.layer(layer_num).bias_wl -= 1
                     prev_type = 'bias'
                 else:
                     raise KeyError(
                         "Var type should be either kernel or bias but get {}".format(var_type))
                 fl_agent.apply_wlfl_to_layers(self.quantize_layers,self.wl_list)
-                model_acc = fl_agent.model_accuracy() 
-                #FIXME:Try different type of acc_loss (not good)
-                if init_acc is not None:
-                    accuracy_loss = init_acc - model_acc
+                model_acc = fl_agent.model_accuracy(shuffle=False) 
+                accuracy_loss = init_acc - model_acc
                 self.restore_model_weight()
                 compression_rate = self.get_compression_rate()
                 print("reduce wl on layer {} {},acc_loss: {}, current accuracy:{}, compression rate: {}"
@@ -369,6 +390,7 @@ class WLSearchAgent(object):
             """
         elif search_mode == 'compress_first':
             while (accuracy_loss < acc_loss_threshold):
+                init_acc = fl_agent.model_accuracy(shuffle=True)
                 self.update_accuracy_loss_per_bit_list(fl_agent)
                 var_type,layer_num,reduce_bit = self.accuracy_loss_per_bit_list.get_largest_compress(
                                                     self.parameter_size_list,max_loss=0.005)
@@ -404,7 +426,7 @@ class WLSearchAgent(object):
 
     def update_accuracy_loss_per_bit_list(self,fl_agent:FlSerachAgent,increase_wl=False):
         self.restore_model_weight()
-        ori_acc = fl_agent.model_accuracy()
+        ori_acc = fl_agent.model_accuracy(shuffle=True)
         #print('Original Acc: {}'.format(ori_acc))
         for i,wlfl in enumerate(self.wl_list):
             
@@ -415,7 +437,8 @@ class WLSearchAgent(object):
                 wlfl.kernel_wl -=1
             #print(self.wl_list)
             acc = fl_agent.serarch_layers_fl_and_get_accuracy(
-                                    self.quantize_layers,self.wl_list)
+                                    self.quantize_layers,self.wl_list,
+                                    shuffle=False)
             self.restore_model_weight()
             #acc_loss = max(ori_acc - acc,0) 
             acc_loss = ori_acc - acc 
@@ -438,7 +461,8 @@ class WLSearchAgent(object):
 
                 else:
                     acc = fl_agent.serarch_layers_fl_and_get_accuracy(
-                                        self.quantize_layers,self.wl_list)
+                                        self.quantize_layers,self.wl_list,
+                                        shuffle=False)
                     self.restore_model_weight()
                     #acc_loss = max(ori_acc - acc,0)
                     acc_loss = ori_acc - acc
@@ -528,7 +552,7 @@ class WLSearchAgent(object):
     
 class QunatizeComplier(object):
     def __init__(self,quantize_model,full_precision_model,quantizable_layers,
-                tunner_fn,acc_fn,verbose = False,max_loss = 0.02,target_compression=0.1):
+                tunner_fn,acc_fn,verbose = True,max_loss = 0.02,target_compression=0.1):
         super().__init__()
         self.q_model = quantize_model
         self.full_model = full_precision_model
@@ -536,7 +560,7 @@ class QunatizeComplier(object):
         self.wl_agent = WLSearchAgent(self.q_model,self.full_model,self.quantize_layers)
         self.fl_agent = FlSerachAgent(self.q_model,tunner_fn,acc_fn)
         self.verbose = verbose
-        self.corase_search_loss_threshold = 0.001
+        self.corase_search_loss_threshold = max_loss
         self.max_loss = max_loss
         self.target_compression_rate = target_compression
         self.tune_tril = 8
@@ -545,7 +569,7 @@ class QunatizeComplier(object):
     def quantize_model(self):
         # init info
         self.wl_agent.restore_model_weight()
-        init_acc = self.fl_agent.model_accuracy() 
+        init_acc = self.fl_agent.model_accuracy(shuffle=True) 
         if self.verbose:
             print("Full percision model accuracy: {}".format(init_acc))
         
@@ -574,10 +598,9 @@ class QunatizeComplier(object):
                 if self.verbose:
                     print('qunatization end after corase seach')
                 return self.q_model, self.wl_agent.get_wl_list() 
-
-        else:
-            if self.verbose:
-                print('\n************Fine search begin************\n')
+    
+        if self.verbose:
+            print('\n************Fine search begin************\n')
         
         ####load list : Delete later
         #self.wl_agent.get_wl_list().load('complier_tmp/3deep_compressed_resnet20_wlfl.txt')
@@ -586,12 +609,17 @@ class QunatizeComplier(object):
         #fine search 
         fine_search_end = False 
         while not fine_search_end:
+            print('In compression search+++++++++++++++++++++++++++')
             last_type,last_layer = self.wl_agent.fine_search(fl_agent=self.fl_agent,
                                 acc_loss_threshold=self.fine_search_loss_step,
-                                init_acc = init_acc,search_mode='compress_first')
+                                search_mode='compress_first')
             
             compress_rate,total_bits =  self.wl_agent.get_compression_rate() 
-            if compress_rate <= self.target_compression_rate:
+            print('Compression rate:{}'.format(compress_rate))
+            print('Traget Compression rate:{}'.format(self.target_compression_rate))
+
+            if compress_rate < self.target_compression_rate:
+                print("----------Ahieve compress rate ---------")
                 fine_search_end = True
                 break
             else:
@@ -599,7 +627,7 @@ class QunatizeComplier(object):
                     print('------Fine tune the model------')
                 tune_acc = self.tune_model(init_acc,self.max_loss)
                 if tune_acc:
-                    continue
+                    pass 
                 else:
                     fine_search_end = True
                     #restore the prev wlfl before the acc unrestorable
@@ -609,6 +637,7 @@ class QunatizeComplier(object):
                     elif last_type == 'bias':
                         self.wl_agent.get_wl_list().layer(last_layer).bias_wl +=1
 
+        print("Start loss search++++++++++++++++++++++++++++")
         fine_search_end = False 
         while not fine_search_end:
             last_type,last_layer = self.wl_agent.fine_search(fl_agent=self.fl_agent,

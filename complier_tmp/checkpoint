@@ -1,2 +1,2 @@
-model_checkpoint_path: "max_loss_0005_deep_compressed_resnet20_model"
-all_model_checkpoint_paths: "max_loss_0005_deep_compressed_resnet20_model"
+model_checkpoint_path: "3deep_compressed_resnet20_model"
+all_model_checkpoint_paths: "3deep_compressed_resnet20_model"
