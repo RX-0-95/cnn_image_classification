@@ -123,7 +123,7 @@ class ModelQunatize(object):
 
     def to_fix_fn(self,x,layer = None):
         if self.quantize_layer_extract_mode:
-            print('quantize layer extracting')
+            #print('quantize layer extracting')
             self.quantize_layers.append(layer)
             self.quantize_layers_outshape.append(x.shape.as_list()[1:])
 

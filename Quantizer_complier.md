@@ -39,6 +39,8 @@ recorder(dict) to record each layer's opt fl for
 
 ### Retrain the model for one batch (?)
 
+
+## WL Search Module
 ### Course search 
 1. Decrease the wl of each layer so the total test acc will not decrease by 1%(course threshold)
 
@@ -55,6 +57,37 @@ if the precision change is greate than (course thresold: 1%) increase the wl of 
 The best fl is found by 
 
 3. Apply wl to all layers, 
+
+
+### Fine search 
+use list to store acc_loss_vs_bit for each layers 
+
+1. Init acc_loss per bit list 
+get_model_acc use fl agent
+for all layers:
+    decrease the wl of the layer by 1 
+    pass to fl_agent, serach for best fl 
+    get model accuracy loss 
+    calculate acc_loss per bit and write to list
+
+3. Acc loss threshold calculator 
+    Native: hard threshold 
+    Advnace: compression rate and acc_loss
+
+2. 
+while True (some accuracy loss threshold):
+   a.  get smallest acc_loss_per_bit: kernel or bias 
+    use param_size calc acc_loss
+
+    b. if greater than threshold, find second smallest. so on 
+
+    c. reduce wl of layer(kernel/bias) by 1
+
+    d. pass to fl update the acc_loss_per_bit list. 
+    
+    e. calc compression rate
+
+    e. repeat until loss threshold reached 
 
 
 ### Retrain the model 
@@ -85,3 +118,19 @@ fl: flaoting lenght
 if the size of the var is 0, then return do nothing 
 if not assgn the wl and fl to the var 
 
+
+# Report 
+
+## Introduction 1/4
+
+## Qunatization method 
+
+### Tech 1/4
+### Layer 1/4
+
+## Search Heruistic 
+### FL agent: 1/2
+### WL ageent: 1/2 
+
+## Result: 1/2
+## Discussion: 1/4

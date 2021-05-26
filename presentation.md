@@ -159,3 +159,4 @@ As a result the Stratix 10NX NPU running at batch-6 inference achieves 12-16x an
 
 ## Conclusion
 As a conclusion, the team presented the first evaluation of the performance of Itenl's AI-optimized Startix 10NX FPGA with tensor blocks compared to latest AI-optimized GPUs. They use their FPGA implement Brainwave NPU and achieves 3.5x performance then the baseline NPU without tesor block on Stratix 10MX. In common DL workload, the utilization of the NPU reach 80%. The NPU at batch-6 delievers 24x 12x higher core cpmpute perfoprmance on averge compare the T4 and V100 respectivly. At higer batch size such as 256, the NPU sill achieves 58% higher perfirnace than T4 and only 30% less than V100. Finally they build an ene-to-end system for NPU and GPUs and compare their AI inference. The result show that the FPGA;s intergrage 100G enterhnet result int 10x and x times less overhead compared to the 128Gnps PCIe interface on the V100 GPU for RNN worrload. 
+fdsfadsf 

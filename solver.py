@@ -103,8 +103,9 @@ class Solver(object):
                 loss = self.loss_fn(y_np, scores)
                 test_loss.update_state(loss)
                 test_accuracy.update_state(y_np, scores)
-            print(template.format(test_loss.result(),
-                test_accuracy.result()*100))
+            if self.verbose:
+                print(template.format(test_loss.result(),
+                    test_accuracy.result()*100))
             return test_loss.result(), test_accuracy.result() 
         
         """
@@ -129,7 +130,7 @@ class Solver(object):
         predict_label = tf.argmax(scores,axis=1).numpy()
         return predict_label
 
-    def train(self):
+    def train(self,iter=None):
         #self.logs.clear()
         model =self.model
         with tf.device(self.device):
@@ -195,6 +196,11 @@ class Solver(object):
                             """
                     
                     t+= 1
+                    if iter == None:
+                        pass 
+                    elif iter == t:
+                        break
+                   
                 progress_bar.finish()
                 #Save model  
                 if self.save_mode:
@@ -205,6 +211,8 @@ class Solver(object):
                         tf.saved_model.save(model,save_path)
             if  self.plot_graph:
                 self.plot_logs(self.logs)
+
+        return train_loss.result(), train_accuracy.result(), val_loss.result, val_accuracy.result()
 
 class Dataset(object):
     def __init__(self,X,y,batch_size, shuffle= False) -> None:
