@@ -92,7 +92,7 @@ class Solver(object):
         Test_accuracy 
         """
        
-        test_data = Dataset(X,y,1024,shuffle=False)
+        test_data = Dataset(X,y,10000,shuffle=False)
         test_loss =tf.keras.metrics.Mean(name='test_loss')
         test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
         with tf.device(self.device):
