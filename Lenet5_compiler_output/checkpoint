@@ -1,0 +1,2 @@
+model_checkpoint_path: "maxloss_005_deep_compressed_model"
+all_model_checkpoint_paths: "maxloss_005_deep_compressed_model"
